@@ -5,22 +5,22 @@ id_pattern = re.compile(r'^.\d+$')
 
 class Config(object):
     # pyro client config
-    API_ID    = os.environ.get("API_ID", "")
-    API_HASH  = os.environ.get("API_HASH", "")
-    BOT_TOKEN = os.environ.get("BOT_TOKEN", "") 
+    API_ID    = "20288994"
+    API_HASH  = "d702614912f1ad370a0d18786002adbf"
+    BOT_TOKEN = "8159032196:AAHcvSp1Y_h5ZXaHSX7-n6H_GoKtFR_VLxk" 
    
     # database config
-    DATABASE_NAME = os.environ.get("DATABASE_NAME","")     
-    DATABASE_URL  = os.environ.get("DATABASE_URL","")
+    DATABASE_NAME = "Cluster0"
+    DATABASE_URL  = "mongodb+srv://vsandeepa183_db_user:venura8907@cluster0.o1c53d4.mongodb.net/?appName=Cluster0"
  
     # other configs
     BOT_UPTIME  = time.time()
-    START_PIC   = os.environ.get("START_PIC", "")
-    ADMIN = [int(admin) if id_pattern.search(admin) else admin for admin in os.environ.get('ADMIN', '').split()]
+    START_PIC   = ""
+    ADMIN="8498741978 @venuboyy"
 
     # channels logs
-    FORCE_SUBS   = os.environ.get("FORCE_SUBS", "") 
-    LOG_CHANNEL = int(os.environ.get("LOG_CHANNEL", ""))
+    FORCE_SUBS   = "Zerodev2"
+    LOG_CHANNEL = "-1003712131076"
 
     # wes response configuration     
     WEBHOOK = bool(os.environ.get("WEBHOOK", False))
@@ -29,17 +29,13 @@ class Config(object):
 
 class Txt(object):
     # part of text configuration
-    START_TXT = """Hello {} 👋 
+    START_TXT = """<b>ʜᴇʏ, {}!</b>
 
-➻ This Is An Advanced And Yet Powerful Rename Bot.
+<b>ɪ'ᴍ ᴀ ᴘᴏᴡᴇʀғᴜʟ ʀᴇɴᴀᴍᴇ ʙᴏᴛ ⚡</b>
 
-➻ Using This Bot You Can Rename And Change Thumbnail Of Your Files.
+<b>ɪ ᴄᴀɴ ʀᴇɴᴀᴍᴇ ʏᴏᴜʀ ғɪʟᴇs, ᴠɪᴅᴇᴏs & ᴅᴏᴄᴜᴍᴇɴᴛs ᴜᴘ ᴛᴏ 𝟺ɢʙ 💾</b>
 
-➻ You Can Also Convert Video To File And File To Video.
-
-➻ This Bot Also Supports Custom Thumbnail And Custom Caption.
-
-<b>Bot Is Made By :</b> @Venuboyy"""
+<b>ᴊᴜsᴛ sᴇɴᴅ ᴍᴇ ᴀɴʏ ғɪʟᴇ — ᴀɴᴅ ɢᴇᴛ ɪᴛ ʀᴇɴᴀᴍᴇᴅ ɪɴ sᴇᴄᴏɴᴅs ⚡</b>"""
 
     ABOUT_TXT = """
 ╭───────────────⍟
