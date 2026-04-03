@@ -7,8 +7,12 @@ from aiohttp import web
 from route import web_server
 import pyromod
 import pyrogram.utils
+import os
 
 pyrogram.utils.MIN_CHANNEL_ID = -100999999999999
+
+# Use Render's PORT env variable, fallback to 8080
+PORT = int(os.environ.get("PORT", 8080))
 
 
 class Bot(Client):
@@ -31,12 +35,12 @@ class Bot(Client):
         self.username = me.username  
         self.uptime = Config.BOT_UPTIME
 
-        # Always start web server (required for Render to detect open port)
+        # Start web server on Render's required port
         try:
             app = web.AppRunner(await web_server())
             await app.setup()       
-            await web.TCPSite(app, "0.0.0.0", 10000).start()
-            print("Web server started on port 10000")
+            await web.TCPSite(app, "0.0.0.0", PORT).start()
+            print(f"Web server started on port {PORT}")
         except Exception as e:
             print(f"Web server failed to start: {e}")
 
