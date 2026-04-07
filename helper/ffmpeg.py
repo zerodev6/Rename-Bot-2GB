@@ -95,25 +95,23 @@ async def add_metadata(input_path, output_path, metadata, ms):
             "-metadata", f"comment={safe_metadata}",
             "-metadata", f"encoder={safe_metadata}",
 
-            # ✅ Stream 0 — Video
+            # ✅ Stream 0 — Video (no language)
             "-metadata:s:0", "title=",
             "-metadata:s:0", f"title={safe_metadata}",
-            "-metadata:s:0", "language=eng",
 
-            # ✅ Stream 1 — Audio
+            # ✅ Stream 1 — Audio (no language)
             "-metadata:s:1", "title=",
             "-metadata:s:1", f"title={safe_metadata}",
-            "-metadata:s:1", "language=eng",
 
             # ✅ Stream 2 — Subtitle English (Default ON)
             "-metadata:s:2", "title=",
-            "-metadata:s:2", "title=English",
+            "-metadata:s:2", f"title=English {safe_metadata}",
             "-metadata:s:2", "language=eng",
             "-disposition:s:2", "default",
 
             # ✅ Stream 3 — Subtitle Sinhala (Not Default)
             "-metadata:s:3", "title=",
-            "-metadata:s:3", "title=Sinhala",
+            "-metadata:s:3", f"title=Sinhala {safe_metadata}",
             "-metadata:s:3", "language=sin",
             "-disposition:s:3", "0",
 
