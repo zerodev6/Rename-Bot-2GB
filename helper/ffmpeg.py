@@ -67,17 +67,14 @@ async def take_screen_shot(video_file, output_directory, ttl):
 
 async def add_metadata(input_path, output_path, metadata, ms):
     try:
-        # Verify input file exists before running ffmpeg
         if not input_path or not os.path.exists(input_path):
             await ms.edit("❌ <i>Input file not found. Cannot add metadata.</i>")
             return None
 
-        # Ensure output directory exists
         os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
 
         await ms.edit("📝 <i>Adding Metadata To Your File ⚡</i>")
 
-        # Sanitize metadata string — remove characters that break ffmpeg args
         safe_metadata = str(metadata).replace("'", "").replace('"', "").replace("\\", "").strip()
 
         command = [
@@ -88,7 +85,7 @@ async def add_metadata(input_path, output_path, metadata, ms):
             "-c:a", "copy",
             "-c:s", "copy",
 
-            # ✅ Strip ALL existing metadata from source first
+            # Strip ALL existing metadata
             "-map_metadata", "-1",
 
             # ✅ Global container metadata
@@ -98,20 +95,27 @@ async def add_metadata(input_path, output_path, metadata, ms):
             "-metadata", f"comment={safe_metadata}",
             "-metadata", f"encoder={safe_metadata}",
 
-            # ✅ Stream 0 — Video: clear old title then set new
+            # ✅ Stream 0 — Video
             "-metadata:s:0", "title=",
             "-metadata:s:0", f"title={safe_metadata}",
             "-metadata:s:0", "language=eng",
 
-            # ✅ Stream 1 — Audio: clear old title then set new
+            # ✅ Stream 1 — Audio
             "-metadata:s:1", "title=",
             "-metadata:s:1", f"title={safe_metadata}",
             "-metadata:s:1", "language=eng",
 
-            # ✅ Stream 2 — Subtitle: clear old title then set new
+            # ✅ Stream 2 — Subtitle English (Default ON)
             "-metadata:s:2", "title=",
-            "-metadata:s:2", f"title={safe_metadata}",
+            "-metadata:s:2", "title=English",
             "-metadata:s:2", "language=eng",
+            "-disposition:s:2", "default",
+
+            # ✅ Stream 3 — Subtitle Sinhala (Not Default)
+            "-metadata:s:3", "title=",
+            "-metadata:s:3", "title=Sinhala",
+            "-metadata:s:3", "language=sin",
+            "-disposition:s:3", "0",
 
             output_path
         ]
