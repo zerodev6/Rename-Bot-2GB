@@ -429,16 +429,97 @@ async def convert_to_webdl(input_path: str, output_dir: str, ms) -> str | None:
         output_path,
     ]
 
-    # ── Run ────────────────────────────────────────
-    process = await asyncio.create_subprocess_exec(
-        *command,
+    # ── Get total duration for progress ────────────
+    dur_cmd = [
+        "ffprobe", "-v", "error",
+        "-show_entries", "format=duration",
+        "-of", "default=noprint_wrappers=1:nokey=1",
+        input_path,
+    ]
+    dur_proc = await asyncio.create_subprocess_exec(
+        *dur_cmd,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
     )
-    _, stderr = await process.communicate()
+    dur_out, _ = await dur_proc.communicate()
+    try:
+        total_duration = float(dur_out.decode().strip())
+    except Exception:
+        total_duration = 0.0
+
+    # ── Run with real progress bar ──────────────────
+    command_with_progress = command[:-1] + ["-progress", "pipe:2"] + [command[-1]]
+
+    process = await asyncio.create_subprocess_exec(
+        *command_with_progress,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+
+    stderr_lines = []
+    start_time   = time.time()
+    last_edit    = 0.0
+    current_secs = 0.0
+
+    async def _read_progress():
+        nonlocal current_secs, last_edit
+        while True:
+            line = await process.stderr.readline()
+            if not line:
+                break
+            decoded = line.decode("utf-8", errors="replace").strip()
+            stderr_lines.append(decoded)
+
+            # -progress pipe:2 emits "out_time_us=<microseconds>"
+            if decoded.startswith("out_time_us="):
+                try:
+                    us = int(decoded.split("=", 1)[1])
+                    current_secs = us / 1_000_000
+                except ValueError:
+                    pass
+
+            # Also parse "out_time=HH:MM:SS.mmm" as fallback
+            elif decoded.startswith("out_time="):
+                try:
+                    t = decoded.split("=", 1)[1]
+                    parts = t.split(":")
+                    current_secs = (
+                        int(parts[0]) * 3600
+                        + int(parts[1]) * 60
+                        + float(parts[2])
+                    )
+                except Exception:
+                    pass
+
+            # Throttle Telegram edits to once every 5 s
+            now = time.time()
+            if total_duration > 0 and (now - last_edit) >= 5:
+                last_edit   = now
+                elapsed     = max(now - start_time, 1)
+                percent     = min(current_secs / total_duration * 100, 100)
+                done        = int(percent / 5)
+                bar         = "█" * done + "░" * (20 - done)
+                speed_x     = current_secs / elapsed
+                remaining   = (total_duration - current_secs) / speed_x if speed_x > 0 else 0
+                try:
+                    await ms.edit(
+                        f"⚙️ <b>Re-encoding to WEB-DL…</b>\n\n"
+                        f"<code>{bar}</code> <b>{percent:.1f}%</b>\n\n"
+                        f"📐 <b>Source :</b> <i>{width}×{height} ({res})</i>\n"
+                        f"🎯 <b>Output :</b> <i>{out_res} WEB-DL</i>\n"
+                        f"🎬 <b>Video  :</b> <i>{video_label}</i>\n"
+                        f"🔊 <b>Audio  :</b> <i>{audio_label}</i>\n\n"
+                        f"⏱ <b>Elapsed :</b> <i>{time_formatter(elapsed)}</i>\n"
+                        f"⏳ <b>ETA     :</b> <i>{time_formatter(remaining)}</i>"
+                    )
+                except Exception:
+                    pass
+
+    await _read_progress()
+    await process.wait()
 
     if process.returncode != 0:
-        err = stderr.decode().strip()
+        err = "\n".join(stderr_lines)
         print(f"[convert_to_webdl FFmpeg Error]\n{err}")
         await ms.edit("❌ <i>WEB-DL re-encode failed. Check logs.</i>")
         return None
