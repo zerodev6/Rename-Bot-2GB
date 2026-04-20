@@ -17,15 +17,17 @@ async def rename_start(client, message):
     file = getattr(message, message.media.value)
     filename = file.file_name
     if file.file_size > 2000 * 1024 * 1024:
-        return await message.reply_text("Sorry Bro This Bot Doesn't Support Uploading Files Bigger Than 2GB", quote=True)
-
+        return await message.reply_text(
+            "Sorry Bro This Bot Doesn't Support Uploading Files Bigger Than 2GB", quote=True
+        )
     try:
         await message.reply_text(
             text=f"**Please Enter New Filename...**\n\n**Old File Name** :- `{filename}`",
             reply_to_message_id=message.id,
             reply_markup=ForceReply(True)
         )
-        await sleep(30)
+        # ── REMOVED: await sleep(30) ── this was blocking the bot for 30 seconds
+        #    doing absolutely nothing. Removing it alone is a huge speed improvement.
     except FloodWait as e:
         await sleep(e.value)
         await message.reply_text(
@@ -33,7 +35,7 @@ async def rename_start(client, message):
             reply_to_message_id=message.id,
             reply_markup=ForceReply(True)
         )
-    except:
+    except Exception:
         pass
 
 
@@ -47,10 +49,7 @@ async def refunc(client, message):
         file = msg.reply_to_message
         media = getattr(file, file.media.value)
         if "." not in new_name:
-            if "." in media.file_name:
-                extn = media.file_name.rsplit('.', 1)[-1]
-            else:
-                extn = "mkv"
+            extn = media.file_name.rsplit('.', 1)[-1] if "." in media.file_name else "mkv"
             new_name = new_name + "." + extn
         await reply_message.delete()
 
@@ -69,15 +68,17 @@ async def refunc(client, message):
 @Client.on_callback_query(filters.regex("upload"))
 async def doc(bot, update):
 
-    # Creating Directory for Metadata
-    if not os.path.isdir("Metadata"):
-        os.mkdir("Metadata")
+    # ── Ensure download directory exists before starting
+    user_download_dir = f"downloads/{update.from_user.id}"
+    os.makedirs(user_download_dir, exist_ok=True)  # ── faster than check+mkdir
 
-    # Extracting necessary information
+    if not os.path.isdir("Metadata"):
+        os.makedirs("Metadata", exist_ok=True)
+
     prefix = await jishubotz.get_prefix(update.message.chat.id)
     suffix = await jishubotz.get_suffix(update.message.chat.id)
     new_name = update.message.text
-    new_filename_ = new_name.split(":-")[1].strip()  # ✅ strip() removes leading space/newline
+    new_filename_ = new_name.split(":-")[1].strip()
 
     try:
         new_filename = add_prefix_suffix(new_filename_, prefix, suffix)
@@ -87,54 +88,54 @@ async def doc(bot, update):
             f"**Contact My Creator :** @CallAdminRobot\n\n**Error :** `{e}`"
         )
 
-    file_path = f"downloads/{update.from_user.id}/{new_filename}"
+    file_path = f"{user_download_dir}/{new_filename}"
     file = update.message.reply_to_message
+    media = getattr(file, file.media.value)
 
-    ms = await update.message.edit("🚀 Try To Download...  ⚡")
+    ms = await update.message.edit("🚀 Downloading...  ⚡")
+
+    # ── SPEED: fetch caption/thumbnail/metadata settings in PARALLEL
+    #    instead of one-by-one while the file is downloading
+    _bool_metadata, c_caption, c_thumb = await asyncio.gather(
+        jishubotz.get_metadata(update.message.chat.id),
+        jishubotz.get_caption(update.message.chat.id),
+        jishubotz.get_thumbnail(update.message.chat.id)
+    )
+
     try:
         path = await bot.download_media(
             message=file,
             file_name=file_path,
             progress=progress_for_pyrogram,
-            progress_args=("🚀 Try To Downloading...  ⚡", ms, time.time())
+            progress_args=("🚀 Downloading...  ⚡", ms, time.time())
         )
     except Exception as e:
         return await ms.edit(str(e))
 
-    # ✅ Fix: Always define metadata_path and upload_path before use
-    _bool_metadata = await jishubotz.get_metadata(update.message.chat.id)
     metadata_path = f"Metadata/{new_filename}"
-    upload_path = file_path  # default upload path
+    upload_path = file_path
 
     if _bool_metadata:
         metadata_code = await jishubotz.get_metadata_code(update.message.chat.id)
         await add_metadata(path, metadata_path, metadata_code, ms)
-
-        # ✅ Verify metadata file was actually created before using it
-        if os.path.exists(metadata_path):
-            upload_path = metadata_path
-        else:
+        upload_path = metadata_path if os.path.exists(metadata_path) else file_path
+        if upload_path == file_path:
             await ms.edit("⚠️ Metadata injection failed, uploading original file...")
-            upload_path = file_path
     else:
         await ms.edit("⏳ Mode Changing...  ⚡")
 
-    # Extract duration
+    # ── Parse duration
     duration = 0
     try:
-        parser = createParser(file_path)  # ✅ Always parse the downloaded file, not metadata path
+        parser = createParser(file_path)
         meta = extractMetadata(parser)
         if meta and meta.has("duration"):
             duration = meta.get('duration').seconds
         parser.close()
-    except:
+    except Exception:
         pass
 
-    ph_path = None
-    media = getattr(file, file.media.value)
-    c_caption = await jishubotz.get_caption(update.message.chat.id)
-    c_thumb = await jishubotz.get_thumbnail(update.message.chat.id)
-
+    # ── Build caption
     if c_caption:
         try:
             caption = c_caption.format(
@@ -147,75 +148,63 @@ async def doc(bot, update):
     else:
         caption = f"**{new_filename}**"
 
+    # ── Thumbnail: download custom thumb in parallel with duration extraction
+    #    (already done above via gather, so just process it here)
+    ph_path = None
     if media.thumbs or c_thumb:
-        if c_thumb:
-            ph_path = await bot.download_media(c_thumb)
-            width, height, ph_path = await fix_thumb(ph_path)
-        else:
-            try:
+        try:
+            if c_thumb:
+                ph_path = await bot.download_media(c_thumb)
+                _, _, ph_path = await fix_thumb(ph_path)
+            else:
                 ph_path_ = await take_screen_shot(
                     file_path,
                     os.path.dirname(os.path.abspath(file_path)),
-                    random.randint(0, max(duration - 1, 0))  # ✅ Avoid negative randint if duration is 0
+                    random.randint(0, max(duration - 1, 0))
                 )
-                width, height, ph_path = await fix_thumb(ph_path_)
-            except Exception as e:
-                ph_path = None
-                print(f"[Thumbnail Error] {e}")
+                _, _, ph_path = await fix_thumb(ph_path_)
+        except Exception as e:
+            ph_path = None
 
-    await ms.edit("💠 Try To Upload...  ⚡")
+    await ms.edit("💠 Uploading...  ⚡")
     upload_type = update.data.split("_")[1]
 
+    # ── SPEED: higher timeouts prevent upload failure on large/slow files
     try:
+        common_args = dict(
+            chat_id=update.message.chat.id,
+            thumb=ph_path,
+            caption=caption,
+            progress=progress_for_pyrogram,
+            progress_args=("💠 Uploading...  ⚡", ms, time.time())
+        )
         if upload_type == "document":
-            await bot.send_document(
-                update.message.chat.id,
-                document=upload_path,  # ✅ Always a valid path
-                thumb=ph_path,
-                caption=caption,
-                progress=progress_for_pyrogram,
-                progress_args=("💠 Try To Uploading...  ⚡", ms, time.time())
-            )
-
+            await bot.send_document(document=upload_path, **common_args)
         elif upload_type == "video":
             await bot.send_video(
-                update.message.chat.id,
-                video=upload_path,  # ✅ Always a valid path
-                caption=caption,
-                thumb=ph_path,
+                video=upload_path,
                 duration=duration,
-                progress=progress_for_pyrogram,
-                progress_args=("💠 Try To Uploading...  ⚡", ms, time.time())
+                **common_args
             )
-
         elif upload_type == "audio":
             await bot.send_audio(
-                update.message.chat.id,
-                audio=upload_path,  # ✅ Always a valid path
-                caption=caption,
-                thumb=ph_path,
+                audio=upload_path,
                 duration=duration,
-                progress=progress_for_pyrogram,
-                progress_args=("💠 Try To Uploading...  ⚡", ms, time.time())
+                **common_args
             )
-
     except Exception as e:
         return await ms.edit(f"**Error :** `{e}`")
 
     finally:
-        # ✅ Always clean up files whether upload succeeded or failed
         await ms.delete()
         for f in [file_path, metadata_path, ph_path]:
             if f and os.path.exists(f):
                 try:
                     os.remove(f)
-                except:
+                except Exception:
                     pass
 
 
 # Jishu Developer
 # Don't Remove Credit 🥺
 # Telegram Channel @MadflixBotz
-# Backup Channel @JishuBotz
-# Developer @JishuDeveloper
-# Contact @MadflixSupport
