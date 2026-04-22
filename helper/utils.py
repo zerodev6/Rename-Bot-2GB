@@ -6,33 +6,46 @@ from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 
 # ─────────────────────────────────────────
-# ⚡ SPEED CONFIG - Tune these for max speed
+# ⚡ SPEED CONFIG
 # ─────────────────────────────────────────
-PROGRESS_UPDATE_DELAY = 3       # Update progress every N seconds
-VIDEO_EXTENSIONS  = ['.mp4', '.mkv', '.avi', '.mov', '.webm', '.flv', '.wmv']
-AUDIO_EXTENSIONS  = ['.mp3', '.flac', '.aac', '.ogg', '.wav', '.m4a', '.opus']
+PROGRESS_UPDATE_DELAY = 5       # Seconds between progress edits
+VIDEO_EXTENSIONS      = ['.mp4', '.mkv', '.avi', '.mov', '.webm', '.flv', '.wmv']
+AUDIO_EXTENSIONS      = ['.mp3', '.flac', '.aac', '.ogg', '.wav', '.m4a', '.opus']
+
+# ✅ Per-message edit time tracker (prevents blocking transfers)
+last_update_time = {}
 
 
 # ─────────────────────────────────────────
-# 📊 PROGRESS BAR
+# 📊 NON-BLOCKING PROGRESS BAR
 # ─────────────────────────────────────────
 async def progress_for_pyrogram(current, total, ud_type, message, start):
-    now  = time.time()
-    diff = now - start
+    now    = time.time()
+    diff   = now - start
+    msg_id = message.id
 
-    # Skip update if less than 1s passed or not on the interval (except final)
-    if diff < 1 or (round(diff % PROGRESS_UPDATE_DELAY) != 0 and current != total):
+    if diff == 0:
         return
 
-    percentage          = current * 100 / total
-    speed               = current / diff if diff > 0 else 0
-    elapsed_ms          = round(diff) * 1000
-    remaining_ms        = round((total - current) / speed) * 1000 if speed > 0 else 0
-    estimated_total_ms  = elapsed_ms + remaining_ms
+    # ✅ Time-based gate — skips edit if cooldown not reached
+    # This ensures message.edit() NEVER blocks the transfer
+    if msg_id in last_update_time:
+        if now - last_update_time[msg_id] < PROGRESS_UPDATE_DELAY:
+            return   # ⚡ Skip — keep downloading/uploading at full speed
 
-    elapsed_str         = TimeFormatter(milliseconds=elapsed_ms)
-    estimated_str       = TimeFormatter(milliseconds=estimated_total_ms)
+    last_update_time[msg_id] = now
 
+    # ── Calculate stats ──
+    percentage         = current * 100 / total
+    speed              = current / diff if diff > 0 else 0
+    elapsed_ms         = round(diff) * 1000
+    remaining_ms       = round((total - current) / speed) * 1000 if speed > 0 else 0
+    estimated_total_ms = elapsed_ms + remaining_ms
+
+    elapsed_str        = TimeFormatter(milliseconds=elapsed_ms)
+    estimated_str      = TimeFormatter(milliseconds=estimated_total_ms)
+
+    # ── Build progress bar ──
     filled   = math.floor(percentage / 5)
     progress = "▣" * filled + "▢" * (20 - filled)
 
@@ -53,6 +66,10 @@ async def progress_for_pyrogram(current, total, ud_type, message, start):
         )
     except:
         pass
+
+    # ✅ Clean up tracker when transfer completes — no memory leak
+    if current == total and msg_id in last_update_time:
+        del last_update_time[msg_id]
 
 
 # ─────────────────────────────────────────
@@ -158,13 +175,13 @@ def makedir(name: str):
 
 
 # ─────────────────────────────────────────
-# ⚡ FAST DOWNLOAD (optimized)
+# ⚡ FAST DOWNLOAD
 # ─────────────────────────────────────────
 async def fast_download(client, message, file_name, progress_msg=None):
     """
     High-speed file download using Pyrogram's native downloader.
     Pass progress_msg to show a live progress bar during download.
-    
+
     Usage:
         path = await fast_download(client, message, "video.mp4", progress_msg=msg)
     """
@@ -184,7 +201,7 @@ async def fast_download(client, message, file_name, progress_msg=None):
 
 
 # ─────────────────────────────────────────
-# ⚡ FAST UPLOAD (optimized, auto file type)
+# ⚡ FAST UPLOAD (auto file type detection)
 # ─────────────────────────────────────────
 async def fast_upload(client, chat_id, file_path, caption="", progress_msg=None, thumb=None):
     """
@@ -214,7 +231,7 @@ async def fast_upload(client, chat_id, file_path, caption="", progress_msg=None,
             video=file_path,
             caption=caption,
             thumb=thumb,
-            supports_streaming=True,          # ⚡ Enables faster streaming upload
+            supports_streaming=True,    # ⚡ Enables faster streaming upload
             progress=progress_fn,
             progress_args=progress_args
         )
