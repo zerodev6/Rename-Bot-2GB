@@ -126,7 +126,7 @@ async def doc(bot, update):
     prefix = await jishubotz.get_prefix(chat_id)
     suffix = await jishubotz.get_suffix(chat_id)
 
-    # ✅ FIXED: Safe split with backtick cleanup & fallback error
+    # ✅ Safe split with backtick cleanup & fallback error
     try:
         raw_name = update.message.text.split(":-")[1].strip()
         raw_name = raw_name.replace("`", "").strip()
@@ -153,14 +153,18 @@ async def doc(bot, update):
 
     # ────────────────────────────────
     # ⚡ FAST DOWNLOAD
+    # ⚡ progress_for_pyrogram uses
+    #    time-gate so edits NEVER
+    #    block the transfer loop
     # ────────────────────────────────
-    ms = await update.message.edit("🚀 **Downloading...**  ⚡")
+    ms         = await update.message.edit("🚀 **Downloading...**  ⚡")
+    start_time = time.time()
     try:
         path = await bot.download_media(
             message=file,
             file_name=file_path,
             progress=progress_for_pyrogram,
-            progress_args=("🚀 **Downloading...**  ⚡", ms, time.time())
+            progress_args=("🚀 **Downloading...**  ⚡", ms, start_time)
         )
     except Exception as e:
         return await ms.edit(f"❌ **Download Failed**\n\n`{e}`")
@@ -204,7 +208,7 @@ async def doc(bot, update):
             # ── User custom thumbnail ──
             ph_path = await bot.download_media(c_thumb)
             _, _, ph_path = await fix_thumb(ph_path)
-        elif media.thumbs:
+        elif getattr(media, "thumbs", None):
             # ── Auto-generate from video ──
             safe_duration = max(duration - 1, 0)
             ph_path_ = await take_screen_shot(
@@ -239,11 +243,14 @@ async def doc(bot, update):
 
     # ────────────────────────────────
     # ⚡ FAST UPLOAD
+    # ⚡ fresh start_time so upload
+    #    progress is accurate
     # ────────────────────────────────
     await ms.edit("💠 **Uploading...**  ⚡")
+    start_time = time.time()    # ✅ Reset timer for upload progress
 
     try:
-        progress_args = ("💠 **Uploading...**  ⚡", ms, time.time())
+        progress_args = ("💠 **Uploading...**  ⚡", ms, start_time)
 
         if upload_type == "document":
             await bot.send_document(
@@ -263,7 +270,7 @@ async def doc(bot, update):
                 caption=caption,
                 thumb=ph_path,
                 duration=duration,
-                supports_streaming=True,        # ⚡ Faster streaming upload
+                supports_streaming=True,    # ⚡ Faster streaming upload
                 progress=progress_for_pyrogram,
                 progress_args=progress_args
             )
@@ -283,8 +290,11 @@ async def doc(bot, update):
         return await ms.edit(f"❌ **Upload Failed**\n\n`{e}`")
 
     finally:
-        # ── Always clean up temp files ──
-        await ms.delete()
+        # ✅ Always clean up — even if upload crashes
+        try:
+            await ms.delete()
+        except:
+            pass
         for path_to_clean in [file_path, meta_path, ph_path]:
             try:
                 if path_to_clean and os.path.exists(path_to_clean):
