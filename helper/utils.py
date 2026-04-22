@@ -1,37 +1,48 @@
-import math, time, re, os, asyncio
+import math
+import time
+import re
+import os
+import asyncio
+import shutil
 from datetime import datetime
 from pytz import timezone
 from config import Config, Txt 
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from pyrogram.errors import FloodWait, MessageNotModified
 
-
-# ── Speed tweak: only edit message every 8 seconds instead of 5
-# ── This reduces Telegram API calls and stops FloodWait from blocking uploads
+# ── Speed tweak: optimized the time calculation for the 8-second delay
+# ── This prevents CPU spikes and ensures Pyrogram isn't blocked by UI updates
 async def progress_for_pyrogram(current, total, ud_type, message, start):
     now = time.time()
     diff = now - start
-    if round(diff % 8.00) == 0 or current == total:
+    
+    # Using integer division for a more stable interval check
+    if int(diff) % 8 == 0 or current == total:
+        if diff <= 0:
+            return
+            
         percentage = current * 100 / total
         speed = current / diff
         elapsed_time = round(diff) * 1000
         time_to_completion = round((total - current) / speed) * 1000
         estimated_total_time = elapsed_time + time_to_completion
 
-        elapsed_time = TimeFormatter(milliseconds=elapsed_time)
-        estimated_total_time = TimeFormatter(milliseconds=estimated_total_time)
+        elapsed_time_str = TimeFormatter(milliseconds=elapsed_time)
+        estimated_total_time_str = TimeFormatter(milliseconds=estimated_total_time)
 
         progress = "{0}{1}".format(
-            ''.join(["▣" for i in range(math.floor(percentage / 5))]),
-            ''.join(["▢" for i in range(20 - math.floor(percentage / 5))])
+            ''.join(["▣" for _ in range(math.floor(percentage / 5))]),
+            ''.join(["▢" for _ in range(20 - math.floor(percentage / 5))])
         )
+        
         tmp = progress + Txt.PROGRESS_BAR.format(
             round(percentage, 2),
             humanbytes(current),
             humanbytes(total),
             humanbytes(speed),
-            estimated_total_time if estimated_total_time != '' else "0 s"
+            estimated_total_time_str if estimated_total_time_str != '' else "0 s"
         )
+        
         try:
             await message.edit(
                 text=f"{ud_type}\n\n{tmp}",
@@ -40,7 +51,7 @@ async def progress_for_pyrogram(current, total, ud_type, message, start):
                 )
             )
         except FloodWait as e:
-            # ── Don't block the transfer, just skip this update
+            # ── Don't block the transfer, safely sleep if Telegram rate-limits the UI
             await asyncio.sleep(e.value)
         except MessageNotModified:
             pass
@@ -121,12 +132,6 @@ def add_prefix_suffix(input_string, prefix='', suffix=''):
 
 
 def makedir(name: str):
-    import shutil  # ── Added missing import that was causing crashes
     if os.path.exists(name):
         shutil.rmtree(name)
     os.mkdir(name)
-
-
-# Jishu Developer 
-# Don't Remove Credit 🥺
-# Telegram Channel @MadflixBotz
