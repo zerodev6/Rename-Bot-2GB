@@ -15,9 +15,9 @@ import os, time, re, random, asyncio
 # ─────────────────────────────────────────
 # ⚡ SPEED CONFIG
 # ─────────────────────────────────────────
-MAX_FILE_SIZE   = 2000 * 1024 * 1024   # 2GB limit
-DOWNLOAD_DIR    = "downloads"
-METADATA_DIR    = "Metadata"
+MAX_FILE_SIZE = 2000 * 1024 * 1024   # 2GB limit
+DOWNLOAD_DIR  = "downloads"
+METADATA_DIR  = "Metadata"
 
 
 # ─────────────────────────────────────────
@@ -37,7 +37,7 @@ async def rename_start(client, message):
 
     text = (
         f"✏️ **Please Enter New Filename...**\n\n"
-        f"📄 **Old File Name :** `{filename}`"
+        f"📄 **Old File Name :-** `{filename}`"
     )
 
     try:
@@ -81,9 +81,11 @@ async def refunc(client, message):
 
     # ── Auto-add extension if missing ──
     if "." not in new_name:
-        extn     = media.file_name.rsplit('.', 1)[-1] if (
-            hasattr(media, "file_name") and media.file_name and "." in media.file_name
-        ) else "mkv"
+        extn = (
+            media.file_name.rsplit('.', 1)[-1]
+            if (hasattr(media, "file_name") and media.file_name and "." in media.file_name)
+            else "mkv"
+        )
         new_name = f"{new_name}.{extn}"
 
     await reply_message.delete()
@@ -96,10 +98,11 @@ async def refunc(client, message):
     elif file.media == MessageMediaType.AUDIO:
         button.append([InlineKeyboardButton("🎵 Audio", callback_data="upload_audio")])
 
+    # ✅ CRITICAL: Keep ":-" so doc() can split filename correctly
     await message.reply(
         text=(
             f"📂 **Select Output File Type**\n\n"
-            f"📄 **File Name :** `{new_name}`"
+            f"📄 **File Name :-** `{new_name}`"
         ),
         reply_to_message_id=file.id,
         reply_markup=InlineKeyboardMarkup(button)
@@ -116,13 +119,21 @@ async def doc(bot, update):
     os.makedirs(DOWNLOAD_DIR, exist_ok=True)
     os.makedirs(METADATA_DIR, exist_ok=True)
 
-    chat_id = update.message.chat.id
+    chat_id     = update.message.chat.id
+    upload_type = update.data.split("_")[1]   # document / video / audio
 
-    # ── Extract new filename from message ──
-    prefix        = await jishubotz.get_prefix(chat_id)
-    suffix        = await jishubotz.get_suffix(chat_id)
-    raw_name      = update.message.text.split(":-")[1].strip()
-    upload_type   = update.data.split("_")[1]       # document / video / audio
+    # ── Extract new filename safely ──
+    prefix = await jishubotz.get_prefix(chat_id)
+    suffix = await jishubotz.get_suffix(chat_id)
+
+    # ✅ FIXED: Safe split with backtick cleanup & fallback error
+    try:
+        raw_name = update.message.text.split(":-")[1].strip()
+        raw_name = raw_name.replace("`", "").strip()
+    except IndexError:
+        return await update.message.edit(
+            "❌ **Could not read filename.**\n\nPlease try renaming again."
+        )
 
     try:
         new_filename = add_prefix_suffix(raw_name, prefix, suffix)
@@ -133,10 +144,10 @@ async def doc(bot, update):
             f"**Error :** `{e}`"
         )
 
-    file        = update.message.reply_to_message
-    media       = getattr(file, file.media.value)
-    file_path   = f"{DOWNLOAD_DIR}/{update.from_user.id}/{new_filename}"
-    meta_path   = f"{METADATA_DIR}/{new_filename}"
+    file      = update.message.reply_to_message
+    media     = getattr(file, file.media.value)
+    file_path = f"{DOWNLOAD_DIR}/{update.from_user.id}/{new_filename}"
+    meta_path = f"{METADATA_DIR}/{new_filename}"
 
     os.makedirs(os.path.dirname(file_path), exist_ok=True)
 
