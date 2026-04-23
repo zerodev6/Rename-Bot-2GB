@@ -7,7 +7,7 @@ class Config(object):
     # pyro client config
     API_ID    = "20288994"
     API_HASH  = "d702614912f1ad370a0d18786002adbf"
-    BOT_TOKEN = "8659662712:AAFDH1Vr2avs4b4bJ2vUthygv__KrA470RM" 
+    BOT_TOKEN = "8589373250:AAGZjV7ffEsMP4e0DrZe4SiHzNPNUg-bQvM" 
    
     # database config
     DATABASE_NAME = "Cluster0"
