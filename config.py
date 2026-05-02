@@ -7,7 +7,7 @@ class Config(object):
     # pyro client config
     API_ID    = "20288994"
     API_HASH  = "d702614912f1ad370a0d18786002adbf"
-    BOT_TOKEN = "8589373250:AAGZjV7ffEsMP4e0DrZe4SiHzNPNUg-bQvM" 
+    BOT_TOKEN = "8515469466:AAFlz9hbH_LG3kOAQBhUEuknSTIcmtlfGaU" 
    
     # database config
     DATABASE_NAME = "Cluster0"
@@ -20,7 +20,7 @@ class Config(object):
 
     # channels logs
     FORCE_SUBS   = "Zerodev2"
-    LOG_CHANNEL = "-1003712131076"
+    LOG_CHANNEL = -1003853860662"
 
     # wes response configuration     
     WEBHOOK = True
