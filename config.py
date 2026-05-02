@@ -20,7 +20,7 @@ class Config(object):
 
     # channels logs
     FORCE_SUBS   = "Zerodev2"
-    LOG_CHANNEL = -1003853860662"
+    LOG_CHANNEL = "-1003853860662"
 
     # wes response configuration     
     WEBHOOK = True
